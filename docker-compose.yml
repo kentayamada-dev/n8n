@@ -14,16 +14,13 @@ services:
     volumes:
       - n8n_data:/home/node/.n8n
 
-  ngrok:
-    image: ngrok/ngrok:latest
-    container_name: ngrok
+  cf:
+    image: cloudflare/cloudflared:latest
+    container_name: cf
     restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CF_TUNNEL_TOKEN}
     depends_on:
       - n8n
-    environment:
-      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
-    command: |
-      http n8n:5678 --url=${NGROK_DOMAIN}.ngrok-free.dev
 
 volumes:
   n8n_data:
