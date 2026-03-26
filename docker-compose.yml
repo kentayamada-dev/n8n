@@ -11,6 +11,7 @@ services:
       N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
       GENERIC_TIMEZONE: Asia/Tokyo
       LINE_CHANNEL_SECRET: ${LINE_CHANNEL_SECRET}
+      WEBHOOK_URL: https://${SUBDOMAIN}.${DOMAIN_NAME}/
     volumes:
       - n8n_data:/home/node/.n8n
 
