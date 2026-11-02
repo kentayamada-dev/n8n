@@ -14,7 +14,6 @@ services:
       N8N_PROXY_HOPS: "1"
       GENERIC_TIMEZONE: Asia/Tokyo
       TZ: Asia/Tokyo
-      LINE_CHANNEL_SECRET: ${LINE_CHANNEL_SECRET}
       N8N_WEBHOOK_URL: https://${SUBDOMAIN}.${DOMAIN_NAME}/
     volumes:
       - n8n_data:/home/node/.n8n
