@@ -22,6 +22,11 @@ terraform {
       # 実際に使うバージョンは .terraform.lock.hcl で固定している
       version = "~> 9.12"
     }
+    cloudflare = {
+      source = "cloudflare/cloudflare"
+      # v4 → v5 でリソース名・書き方が大きく変わったので、5.x に限定する
+      version = "~> 5.28"
+    }
   }
 }
 
@@ -29,3 +34,9 @@ provider "oci" {
   config_file_profile = "DEFAULT"
   region              = "ca-toronto-1"
 }
+
+# API トークンは環境変数 CLOUDFLARE_API_TOKEN から読む（コードや tfvars には書かない）
+# トークンに必要な権限:
+#   アカウント: Cloudflare Tunnel 編集、Access: アプリとポリシー 編集
+#   ゾーン（n8n のドメイン）: DNS 編集
+provider "cloudflare" {}

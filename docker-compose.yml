@@ -4,8 +4,8 @@ services:
     image: n8nio/n8n:latest
     container_name: n8n
     restart: unless-stopped
-    ports:
-      - "127.0.0.1:5678:5678"
+    # ホストにはポートを開けない。cf コンテナが Docker のネットワーク内で http://n8n:5678 に転送する
+    # （転送先は terraform/cloudflare.tf で管理）。動作確認は docker compose exec で行う
     environment:
       BINANCE_API_SECRET: ${BINANCE_API_SECRET:?.env に設定してください}
       BINANCE_API_KEY: ${BINANCE_API_KEY:?.env に設定してください}

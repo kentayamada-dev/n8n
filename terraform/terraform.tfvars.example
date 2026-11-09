@@ -7,3 +7,17 @@ tenancy_ocid = "ocid1.tenancy.oc1..xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 # シリアル・コンソール用パスワードのハッシュ。次のコマンドで作る（平文は書かない）
 #   openssl passwd -6
 console_password_hash = "$6$xxxxxxxxxxxxxxxx$xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+# ---- Cloudflare ----
+# API トークンはここに書かず、環境変数で渡す
+#   export CLOUDFLARE_API_TOKEN=...
+
+# アカウント ID とゾーン ID。ダッシュボードでドメインを開いた概要ページの右下にある
+cloudflare_account_id = "0123456789abcdef0123456789abcdef"
+cloudflare_zone_id    = "0123456789abcdef0123456789abcdef"
+
+# n8n を公開するホスト名。サーバーの .env の SUBDOMAIN.DOMAIN_NAME と同じにする
+n8n_hostname = "n8n.example.com"
+
+# Access で n8n に入れるメールアドレス
+access_allowed_emails = ["you@example.com"]
