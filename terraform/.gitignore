@@ -13,6 +13,9 @@
 *.tfvars
 *.tfvars.json
 
+# backend の設定ファイル（テナンシを特定できる namespace を入れるため）
+*.tfbackend
+
 # ローカル専用の上書き設定
 override.tf
 override.tf.json

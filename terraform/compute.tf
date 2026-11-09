@@ -108,8 +108,10 @@ resource "oci_core_instance" "n8n" {
     recovery_action             = "RESTORE_INSTANCE"
   }
 
+  # 古い形式のメタデータ取得（IMDSv1）を無効にし、v2（/opc/v2/ + Authorization ヘッダ必須）だけにする
+  # URL しか操れない SSRF でメタデータを読まれるのを防ぐ（cloud-init・Oracle Cloud Agent は v2 に対応）
   instance_options {
-    are_legacy_imds_endpoints_disabled = false
+    are_legacy_imds_endpoints_disabled = true
   }
 
   launch_options {

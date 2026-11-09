@@ -1,0 +1,9 @@
+# このファイルを backend.tfbackend という名前でコピーし、値を自分のものに書き換える
+# backend.tfbackend は .gitignore で除外されているので、GitHub には上がらない
+#
+# 初期化するときは、次のように渡す
+#   terraform init -backend-config=backend.tfbackend
+
+# Object Storage の namespace。次のコマンドで確認できる
+#   oci os ns get
+namespace = "xxxxxxxxxxxx"
