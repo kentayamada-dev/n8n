@@ -1,0 +1,9 @@
+# このファイルを terraform.tfvars という名前でコピーし、値を自分のものに書き換える
+# terraform.tfvars は .gitignore で除外されているので、GitHub には上がらない
+
+# テナンシの OCID。~/.oci/config の tenancy= の値をそのまま書く
+tenancy_ocid = "ocid1.tenancy.oc1..xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+# シリアル・コンソール用パスワードのハッシュ。次のコマンドで作る（平文は書かない）
+#   openssl passwd -6
+console_password_hash = "$6$xxxxxxxxxxxxxxxx$xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
