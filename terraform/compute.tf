@@ -13,8 +13,9 @@ resource "oci_core_instance" "n8n" {
   # RUNNING を指定しているので、コンソールで停止しても次の apply で起動される
   state = "RUNNING"
 
-  # インスタンスを削除してもブートボリューム（n8n のデータ入り）を残す
-  preserve_boot_volume = true
+  # インスタンスを削除したら、ブートボリュームも一緒に削除する（Always Free の 200 GB 枠を残ったボリュームで使わないため）
+  # n8n のデータもブートボリュームに入っているので、作り直すとデータは消える
+  preserve_boot_volume = false
 
   metadata = {
     ssh_authorized_keys = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCyLBTdOgiofvADIgG4CpjpxMkTb/LMTCcGTNV6/K30NT+MIkJq5QL4fDMy3VcakblEKUhIh8lKlrqJ4H7LhYRsEqzJC0Q4aBkeOyarv0HVoB7XPa4ct5Ozy4+8pX+gbi8j/oRfkafJZWvMpR4RVckwq9C9rT/YZG+uSa8alEOZXeLRTGU6ka4KyKaOftbClCWvBl6U0K+A8Hlv/HxoeY09cg/jo8INzAWHV1g3nh1mxMcTTLb+6CzPedMxTfOdpe9cfGGuq44YJaaixnKbM8VH4Z7DWFhEOdzLq8hflxM6Lo2J3s/IMe9PP0uH87+l/HKthRO10B6YNRacsNrfu+lH ssh-key-2026-03-31"
