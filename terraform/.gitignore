@@ -1,0 +1,26 @@
+# プロバイダのバイナリなど
+.terraform/
+
+# state（リソースの詳細が入るのでコミットしない）
+*.tfstate
+*.tfstate.*
+.terraform.tfstate.lock.info
+
+# plan -out で保存したプランファイル
+*.tfplan
+
+# 変数ファイル（秘密情報を入れることがあるため）
+*.tfvars
+*.tfvars.json
+
+# ローカル専用の上書き設定
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# クラッシュログ
+crash.log
+crash.*.log
+
+# .terraform.lock.hcl はプロバイダのバージョン固定のためコミットする
