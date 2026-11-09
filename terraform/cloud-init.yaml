@@ -1,0 +1,14 @@
+#cloud-config
+# インスタンスの初回起動時だけ実行される設定（Terraform の templatefile で値を埋め込む）
+# 起動後に書き換えても今のインスタンスには反映されない（user_data は作成時にしか渡せないため）
+
+# シリアル・コンソールでログインするためのパスワード（SSH を開けない運用のため必須）
+chpasswd:
+  expire: false
+  users:
+    - name: ubuntu
+      password: ${password_hash}
+      type: HASH
+
+# SSH のパスワード認証は無効のままにする
+ssh_pwauth: false

@@ -88,18 +88,8 @@ resource "oci_core_security_list" "default" {
     }
   }
 
-  # SSH: 自宅の IP からだけ許可する（値は terraform.tfvars で指定）
-  ingress_security_rules {
-    protocol    = "6"
-    source      = var.ssh_allowed_cidr
-    source_type = "CIDR_BLOCK"
-    stateless   = false
-
-    tcp_options {
-      min = 22
-      max = 22
-    }
-  }
+  # SSH は開けない。インスタンスへの接続は OCI コンソールのシリアル・コンソール接続だけで行う
+  # （n8n は Cloudflare Tunnel 経由の外向き接続で公開しているので、受信ポートは不要）
 
   lifecycle {
     ignore_changes = [defined_tags]
@@ -109,8 +99,8 @@ resource "oci_core_security_list" "default" {
 resource "oci_core_subnet" "public" {
   compartment_id             = local.compartment_id
   vcn_id                     = oci_core_vcn.main.id
-  cidr_block                 = "10.0.0.0/24"
-  ipv4cidr_blocks            = ["10.0.0.0/24"]
+  cidr_block                 = local.subnet_cidr
+  ipv4cidr_blocks            = [local.subnet_cidr]
   ipv6cidr_blocks            = []
   display_name               = "subnet"
   dns_label                  = "subnet"
