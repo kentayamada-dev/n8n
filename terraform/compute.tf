@@ -47,7 +47,7 @@ resource "oci_core_instance" "n8n" {
 
   create_vnic_details {
     subnet_id = oci_core_subnet.public.id
-    # 作成時に指定しても OCI が自動の名前（vnic + 日時）を付けるので、作成後に apply をもう 1 回して揃える
+    # 名前（display_name）は書かない。作成時に指定しても VNIC には OCI が自動の名前（vnic + 日時）を付けるため
     private_ip       = "10.0.0.151"
     assign_public_ip = "true" # エフェメラル Public IP（作り直すと変わる）
     assign_ipv6ip    = false

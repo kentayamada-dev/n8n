@@ -52,6 +52,10 @@ resource "cloudflare_dns_record" "n8n" {
   content = "${cloudflare_zero_trust_tunnel_cloudflared.n8n.id}.cfargotunnel.com"
   proxied = true # トンネルへの CNAME は proxied でないと届かない
   ttl     = 1    # 1 は自動（proxied のときは自動しか選べない）
+
+  # Access で塞いでからホスト名を公開する
+  # （DNS が先にできると、Access ができるまでの間、n8n のログインだけで外から入れてしまう）
+  depends_on = [cloudflare_zero_trust_access_application.n8n]
 }
 
 # ---------------------------------------------------------------------------
@@ -77,7 +81,9 @@ resource "cloudflare_zero_trust_access_policy" "n8n_owner" {
   include    = [for email in var.access_allowed_emails : { email = { email = email } }]
 }
 
-# 誰でも認証なしで通す（上の Webhook のパス用。偽のリクエストは n8n 側の署名の検証で弾く）
+# 誰でも認証なしで通す（上の Webhook のパス用）
+# 偽のリクエストは n8n の Slack トリガーが署名で弾く。ただし検証するのは、n8n の Slack の認証情報に
+# Signature Secret（Slack アプリの Signing Secret）を入れたときだけ。空だと誰の POST でも通るので必ず入れる
 resource "cloudflare_zero_trust_access_policy" "n8n_webhook_bypass" {
   account_id = var.cloudflare_account_id
   name       = "n8n - bypass webhooks"
