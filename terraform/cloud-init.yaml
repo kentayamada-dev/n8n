@@ -32,9 +32,20 @@ apt:
 # パッケージ一覧を更新してから入れる。docker-ce を入れると docker サービスは自動で起動・有効化される
 # 入れ終わるのは cloud-init の最後の段階（起動から数分）。終わったかは cloud-init status --wait で確かめる
 # 入ったあとの更新は自動では入らない（sudo apt upgrade で更新する）
-# 書くのは直接使う 2 つだけ。docker-ce-cli・containerd.io は docker-ce の依存関係、
+# Docker は直接使う 2 つだけ書く。docker-ce-cli・containerd.io は docker-ce の依存関係、
 # docker-buildx-plugin は推奨パッケージとして一緒に入る（Docker のドキュメントの 5 つと同じものが入る）
+# git は下の runcmd でリポジトリを取得するのに使う
 package_update: true
 packages:
   - docker-ce
   - docker-compose-plugin
+  - git
+
+# n8n のリポジトリ（docker-compose.yml など）を /home/ubuntu/n8n に取得する。公開リポジトリなので認証は要らない
+# git 用の項目は cloud-init にないので runcmd を使う。runcmd は packages を入れたあとに実行される
+# runcmd は失敗しても次のコマンドに進み、最後のコマンドの結果だけが成否になるので、1 行にまとめて
+# clone に失敗したら cloud-init status がエラーになるようにする
+# 取得するのは作成時点の main だけ。その後の更新は手で git pull する（自動で pull すると確認なしに本番へ出るため）
+# .env（トンネルのトークンなど）は秘密の値で、ここに書くと OCI のメタデータに残るので、手で作る
+runcmd:
+  - git clone https://github.com/kentayamada-dev/n8n.git /home/ubuntu/n8n && chown -R ubuntu:ubuntu /home/ubuntu/n8n
