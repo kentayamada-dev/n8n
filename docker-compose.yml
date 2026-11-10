@@ -1,4 +1,5 @@
 # 値は同じディレクトリの .env から読む（未設定・空なら起動前にエラーで止める）
+# .env は ./create-env.sh で作る（秘密の値を画面に出さずに入力できる）
 services:
   n8n:
     image: n8nio/n8n:latest
