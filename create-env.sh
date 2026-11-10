@@ -43,7 +43,7 @@ ask() {
 
 ask binance_api_key BINANCE_API_KEY '' secret
 ask binance_api_secret BINANCE_API_SECRET '' secret
-ask cf_tunnel_token CF_TUNNEL_TOKEN ' (terraform output -raw cloudflare_tunnel_token)' secret
+ask cf_tunnel_token CF_TUNNEL_TOKEN '' secret
 ask subdomain SUBDOMAIN ' (e.g. n8n)' plain
 ask domain_name DOMAIN_NAME ' (e.g. example.com)' plain
 
