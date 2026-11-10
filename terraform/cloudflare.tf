@@ -57,8 +57,17 @@ resource "cloudflare_dns_record" "n8n" {
 # ---------------------------------------------------------------------------
 # Access（n8n の画面に入る前に Cloudflare でログインさせる）
 # n8n のログインだけに頼らず、許可したメールアドレスの人しか n8n に届かないようにする
-# ログイン方法を設定していなければ、メールに届くワンタイム PIN でログインする
+# ログイン方法は Zero Trust の「認証」の設定に従う（今は Cloudflare アカウントでのログインだけ）
 # ---------------------------------------------------------------------------
+
+locals {
+  # Access を通さずに受け付ける Webhook のパス。ここに書いたものだけ認証なしで通し、それ以外の /webhook/... は Access が必要
+  # 外部サービス（Slack など）は Cloudflare にログインできないため。パスは「/webhook/<ノードの webhookId>/webhook」
+  # webhookId はワークフローの JSON（workflows/*.json）にある。ワークフローを作り直して変わったら、ここも直す
+  public_webhook_paths = [
+    "/webhook/a283f8b9-ae5a-48c8-93b3-1b30806e073a/webhook", # 支出記録「Slackメッセージを受け取る」（Slack トリガー）
+  ]
+}
 
 # 許可したメールアドレスの人だけ通す
 resource "cloudflare_zero_trust_access_policy" "n8n_owner" {
@@ -68,7 +77,7 @@ resource "cloudflare_zero_trust_access_policy" "n8n_owner" {
   include    = [for email in var.access_allowed_emails : { email = { email = email } }]
 }
 
-# 誰でも認証なしで通す（Webhook 用）
+# 誰でも認証なしで通す（上の Webhook のパス用。偽のリクエストは n8n 側の署名の検証で弾く）
 resource "cloudflare_zero_trust_access_policy" "n8n_webhook_bypass" {
   account_id = var.cloudflare_account_id
   name       = "n8n - bypass webhooks"
@@ -76,19 +85,17 @@ resource "cloudflare_zero_trust_access_policy" "n8n_webhook_bypass" {
   include    = [{ everyone = {} }]
 }
 
-# Webhook のパスだけは Access を通さない
-# Slack トリガーなど外部サービスからの呼び出しは Cloudflare にログインできないため
+# public_webhook_paths のパスだけは Access を通さない
 # パスを指定したアプリケーションは、ホスト名全体のアプリケーションより優先される
-# パスの指定はその下の階層も含む（/webhook で /webhook/xxx/... も対象になる）
+# テスト用の /webhook-test は通さない（Slack に登録できる URL は 1 つだけで、普段は本番の URL を使うため）
 resource "cloudflare_zero_trust_access_application" "n8n_webhook" {
   account_id = var.cloudflare_account_id
   name       = "n8n webhooks"
   type       = "self_hosted"
-  domain     = "${var.n8n_hostname}/webhook"
+  domain     = "${var.n8n_hostname}${local.public_webhook_paths[0]}"
 
   destinations = [
-    { type = "public", uri = "${var.n8n_hostname}/webhook" },      # 本番の Webhook
-    { type = "public", uri = "${var.n8n_hostname}/webhook-test" }, # エディタでテストするときの Webhook
+    for path in local.public_webhook_paths : { type = "public", uri = "${var.n8n_hostname}${path}" }
   ]
 
   policies = [
