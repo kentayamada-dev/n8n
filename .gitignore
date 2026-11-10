@@ -1,6 +1,3 @@
-# n8n の暗号化キー（docker-compose.yml の secrets で読み込む）。漏れると認証情報を復号されるのでコミットしない
-n8n_encryption_key
-
 # docker-compose.yml が読む値（Binance の API キー、トンネルのトークンなど）。コミットしない
 .env
 
