@@ -92,9 +92,10 @@ resource "oci_core_instance" "n8n" {
       name          = "Compute HPC RDMA Authentication"
       desired_state = "DISABLED"
     }
+    # テナンシの Cloud Guard を使っていない（無効）ので、このプラグインも動かさない
     plugins_config {
       name          = "Cloud Guard Workload Protection"
-      desired_state = "ENABLED"
+      desired_state = "DISABLED"
     }
     plugins_config {
       name          = "Block Volume Management"
