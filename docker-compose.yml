@@ -2,7 +2,12 @@
 # .env は ./create-env.sh で作る（秘密の値を画面に出さずに入力できる）
 services:
   n8n:
-    image: n8nio/n8n:latest
+    # 版を固定する。latest のままだと、作り直しやイメージの取り直しのときに、確かめていない版が入る
+    # n8n は版が上がると動かなくなる変更がある（例: 2.0 で $env が既定で読めなくなった）
+    # latest は安定版を指すので、3.x が安定版になると自動で 3.x に上がってしまう
+    # 上げるときは、ここを書き換えた PR で確かめてから、サーバーで git pull と sudo docker compose up -d
+    # 下げるのは避ける（新しい版がデータベースの形を変えるので、古い版がそのまま動くとは限らない）
+    image: n8nio/n8n:2.47.3
     container_name: n8n
     restart: unless-stopped
     # ホストにはポートを開けない。cf コンテナが Docker のネットワーク内で http://n8n:5678 に転送する
@@ -25,6 +30,8 @@ services:
       - n8n_data:/home/node/.n8n
 
   cf:
+    # cloudflared は latest のままにする（古い版はサポートが切れていくので、上げ続けるほうが安全）
+    # 取り直すときは: sudo docker compose pull cf && sudo docker compose up -d cf
     image: cloudflare/cloudflared:latest
     container_name: cf
     restart: unless-stopped
