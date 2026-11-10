@@ -52,6 +52,8 @@ resource "cloudflare_dns_record" "n8n" {
   content = "${cloudflare_zero_trust_tunnel_cloudflared.n8n.id}.cfargotunnel.com"
   proxied = true # トンネルへの CNAME は proxied でないと届かない
   ttl     = 1    # 1 は自動（proxied のときは自動しか選べない）
+  # ダッシュボードで手作業のレコードと見分けるための目印（Free プランでは tags が使えないので comment を使う。100 文字まで）
+  comment = "n8n 用。terraform/cloudflare.tf で管理しているので手で変えない"
 
   # Access で塞いでからホスト名を公開する
   # （DNS が先にできると、Access ができるまでの間、n8n のログインだけで外から入れてしまう）
