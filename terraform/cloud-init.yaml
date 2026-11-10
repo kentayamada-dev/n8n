@@ -8,7 +8,9 @@ chpasswd:
   users:
     - name: ubuntu
       password: ${password_hash}
-      type: HASH
+      # 小文字の hash にする（使えるのは hash / text / RANDOM だけ）
+      # 大文字の HASH はどれにも当てはまらず、エラーにならないままパスワードが設定されない
+      type: hash
 
 # SSH のパスワード認証は無効のままにする
 ssh_pwauth: false
