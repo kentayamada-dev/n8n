@@ -4,14 +4,16 @@ resource "oci_core_instance" "n8n" {
   compartment_id      = local.compartment_id
   availability_domain = "etSH:CA-TORONTO-1-AD-1"
   fault_domain        = "FAULT-DOMAIN-2"
-  display_name        = "oci"
   shape               = "VM.Standard.A1.Flex"
   extended_metadata   = {}
-  freeform_tags       = {}
+  freeform_tags       = local.tags
   security_attributes = {}
 
   # RUNNING を指定しているので、コンソールで停止しても次の apply で起動される
   state = "RUNNING"
+
+  # ブートボリュームとの通信を暗号化する。作成時に効くのはこちら（launch_options の同名の値は作成後の状態）
+  is_pv_encryption_in_transit_enabled = true
 
   # インスタンスを削除したら、ブートボリュームも一緒に削除する（Always Free の 200 GB 枠を残ったボリュームで使わないため）
   # n8n のデータもブートボリュームに入っているので、作り直すとデータは消える
@@ -21,18 +23,18 @@ resource "oci_core_instance" "n8n" {
     ssh_authorized_keys = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCyLBTdOgiofvADIgG4CpjpxMkTb/LMTCcGTNV6/K30NT+MIkJq5QL4fDMy3VcakblEKUhIh8lKlrqJ4H7LhYRsEqzJC0Q4aBkeOyarv0HVoB7XPa4ct5Ozy4+8pX+gbi8j/oRfkafJZWvMpR4RVckwq9C9rT/YZG+uSa8alEOZXeLRTGU6ka4KyKaOftbClCWvBl6U0K+A8Hlv/HxoeY09cg/jo8INzAWHV1g3nh1mxMcTTLb+6CzPedMxTfOdpe9cfGGuq44YJaaixnKbM8VH4Z7DWFhEOdzLq8hflxM6Lo2J3s/IMe9PP0uH87+l/HKthRO10B6YNRacsNrfu+lH ssh-key-2026-03-31"
 
     # 初回起動時の設定（シリアル・コンソール用パスワードなど）。作り直すときにだけ効く
-    # 今のインスタンスは user_data なしで作られており、metadata は ignore_changes なので差分にならない
+    # metadata は ignore_changes なので、書き換えても今のインスタンスには反映されない（作り直したときに効く）
     user_data = base64encode(templatefile("${path.module}/cloud-init.yaml", {
       password_hash = var.console_password_hash
     }))
   }
 
+  # local_volume_size_in_gbs と nvmes はローカル NVMe 付きのシェイプ用（A1 にはない）
+  # import したときは 0 が入っていたが、作成時に 0 を渡すと API がエラーにするので書かない
   shape_config {
-    ocpus                    = 4
-    memory_in_gbs            = 24
-    vcpus                    = 4
-    local_volume_size_in_gbs = 0
-    nvmes                    = 0
+    ocpus         = 4
+    memory_in_gbs = 24
+    vcpus         = 4
   }
 
   source_details {
@@ -44,16 +46,16 @@ resource "oci_core_instance" "n8n" {
   }
 
   create_vnic_details {
-    subnet_id                 = oci_core_subnet.public.id
-    display_name              = "oci"
-    hostname_label            = "oci"
-    private_ip                = "10.0.0.151"
-    assign_public_ip          = "true" # エフェメラル Public IP（作り直すと変わる）
-    assign_ipv6ip             = false
+    subnet_id = oci_core_subnet.public.id
+    # 名前（display_name）は書かない。作成時に指定しても VNIC には OCI が自動の名前（vnic + 日時）を付けるため
+    private_ip       = "10.0.0.151"
+    assign_public_ip = "true" # エフェメラル Public IP（作り直すと変わる）
+    assign_ipv6ip    = false
+    # VCN 内の DNS 名は使わないので登録しない（そのため hostname_label も書かない。書くと作成時に API がエラーにする）
     assign_private_dns_record = false
     skip_source_dest_check    = false
     nsg_ids                   = []
-    freeform_tags             = {}
+    freeform_tags             = local.tags
     security_attributes       = {}
   }
 
@@ -90,9 +92,10 @@ resource "oci_core_instance" "n8n" {
       name          = "Compute HPC RDMA Authentication"
       desired_state = "DISABLED"
     }
+    # テナンシの Cloud Guard を使っていない（無効）ので、このプラグインも動かさない
     plugins_config {
       name          = "Cloud Guard Workload Protection"
-      desired_state = "ENABLED"
+      desired_state = "DISABLED"
     }
     plugins_config {
       name          = "Block Volume Management"
@@ -115,6 +118,7 @@ resource "oci_core_instance" "n8n" {
     are_legacy_imds_endpoints_disabled = true
   }
 
+  # is_pv_encryption_in_transit_enabled は作成時には効かない（作成時は上のトップレベルの値が使われる）
   launch_options {
     boot_volume_type                    = "PARAVIRTUALIZED"
     firmware                            = "UEFI_64"
