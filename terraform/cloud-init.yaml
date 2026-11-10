@@ -41,11 +41,32 @@ packages:
   - docker-compose-plugin
   - git
 
-# n8n のリポジトリ（docker-compose.yml など）を /home/ubuntu/n8n に取得する。公開リポジトリなので認証は要らない
-# git 用の項目は cloud-init にないので runcmd を使う。runcmd は packages を入れたあとに実行される
-# runcmd は失敗しても次のコマンドに進み、最後のコマンドの結果だけが成否になるので、1 行にまとめて
-# clone に失敗したら cloud-init status がエラーになるようにする
+# cloudflared（QUIC）が使う UDP の受信・送信バッファの上限を上げる
+# 既定の上限（約 208 KiB）では「failed to sufficiently increase receive buffer size」の警告が出るため
+# 値は quic-go の推奨（https://github.com/quic-go/quic-go/wiki/UDP-Buffer-Sizes）
+# この 2 つはネットワーク名前空間ごとではなくホスト全体の値なので、ホストで上げればコンテナにも効く
+# 次の起動からは systemd-sysctl がこのファイルを読む。初回の起動は下の runcmd で反映する
+write_files:
+  - path: /etc/sysctl.d/99-cloudflared-quic.conf
+    content: |
+      net.core.rmem_max=7500000
+      net.core.wmem_max=7500000
+
+# git 用・sysctl の反映用の項目は cloud-init にないので runcmd を使う。runcmd は packages を入れたあとに実行される
+# runcmd は 1 つのシェルスクリプトとして実行され、そのままだと途中で失敗しても次のコマンドに進み、
+# 最後のコマンドの結果だけが成否になる。先頭で set -e にして、どれかが失敗したらそこで止め、
+# cloud-init status がエラーになるようにする
+#
+# n8n のリポジトリ（docker-compose.yml など）は /home/ubuntu/n8n に取得する。公開リポジトリなので認証は要らない
 # 取得するのは作成時点の main だけ。その後の更新は手で git pull する（自動で pull すると確認なしに本番へ出るため）
 # .env（トンネルのトークンなど）は秘密の値で、ここに書くと OCI のメタデータに残るので、手で作る
+#
+# UDP バッファの反映は、失敗しても n8n は動くので、大事な clone のあとに行う
+# sysctl -p は値を設定できなくても終了コード 0 を返すことがあるので、反映後の値を読み直して確かめる
 runcmd:
-  - git clone https://github.com/kentayamada-dev/n8n.git /home/ubuntu/n8n && chown -R ubuntu:ubuntu /home/ubuntu/n8n
+  - set -e
+  - git clone https://github.com/kentayamada-dev/n8n.git /home/ubuntu/n8n
+  - chown -R ubuntu:ubuntu /home/ubuntu/n8n
+  - sysctl -p /etc/sysctl.d/99-cloudflared-quic.conf
+  - test "$(sysctl -n net.core.rmem_max)" -ge 7500000
+  - test "$(sysctl -n net.core.wmem_max)" -ge 7500000

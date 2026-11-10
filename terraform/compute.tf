@@ -22,7 +22,7 @@ resource "oci_core_instance" "n8n" {
   metadata = {
     ssh_authorized_keys = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCyLBTdOgiofvADIgG4CpjpxMkTb/LMTCcGTNV6/K30NT+MIkJq5QL4fDMy3VcakblEKUhIh8lKlrqJ4H7LhYRsEqzJC0Q4aBkeOyarv0HVoB7XPa4ct5Ozy4+8pX+gbi8j/oRfkafJZWvMpR4RVckwq9C9rT/YZG+uSa8alEOZXeLRTGU6ka4KyKaOftbClCWvBl6U0K+A8Hlv/HxoeY09cg/jo8INzAWHV1g3nh1mxMcTTLb+6CzPedMxTfOdpe9cfGGuq44YJaaixnKbM8VH4Z7DWFhEOdzLq8hflxM6Lo2J3s/IMe9PP0uH87+l/HKthRO10B6YNRacsNrfu+lH ssh-key-2026-03-31"
 
-    # 初回起動時の設定（シリアル・コンソール用パスワード、Docker のインストール、リポジトリの取得）。作り直すときにだけ効く
+    # 初回起動時の設定（シリアル・コンソール用パスワード、Docker のインストール、UDP バッファの上限、リポジトリの取得）。作り直すときにだけ効く
     # metadata は ignore_changes なので、書き換えても今のインスタンスには反映されない（作り直したときに効く）
     user_data = base64encode(templatefile("${path.module}/cloud-init.yaml", {
       password_hash = var.console_password_hash
