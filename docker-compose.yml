@@ -15,7 +15,7 @@ services:
     environment:
       BINANCE_API_SECRET: ${BINANCE_API_SECRET:?.env に設定してください}
       BINANCE_API_KEY: ${BINANCE_API_KEY:?.env に設定してください}
-      # 暗号化キーは渡さず、n8n に初回起動時に作らせる（/home/node/.n8n/config に保存され、n8n_data ボリュームに残る）
+      # 暗号化キーは渡さず、n8n に初回起動時に作らせる（/home/node/.n8n/config に保存され、ブロックボリュームの /srv/n8n/data に残る）
       # 環境変数ではないので $env からは読めず、.n8n のファイルはノードから読めない（N8N_BLOCK_FILE_ACCESS_TO_N8N_FILES の既定）
       # 設定ファイルの権限を 0600 にして、n8n のユーザーだけが読めるようにする
       # キーを控えるときは: sudo docker compose exec n8n cat /home/node/.n8n/config
@@ -26,8 +26,16 @@ services:
       GENERIC_TIMEZONE: Asia/Tokyo
       TZ: Asia/Tokyo
       N8N_WEBHOOK_URL: https://${SUBDOMAIN:?.env に設定してください}.${DOMAIN_NAME:?.env に設定してください}/
+    # n8n のデータ（SQLite のデータベース・暗号化キーなど）は、ブートボリュームではなくブロックボリュームに置く
+    # インスタンスを作り直してもデータが残る（terraform/compute.tf の oci_core_volume.n8n_data）
+    # /srv/n8n は setup-data-volume.sh でマウントする。data はボリュームの中にしかないので、マウントしていないと見つからず、
+    # create_host_path: false により n8n は起動に失敗する（Docker が空の data を作り、新しいデータで起動してしまうのを防ぐ）
     volumes:
-      - n8n_data:/home/node/.n8n
+      - type: bind
+        source: /srv/n8n/data
+        target: /home/node/.n8n
+        bind:
+          create_host_path: false
 
   cf:
     # cloudflared は latest のままにする（古い版はサポートが切れていくので、上げ続けるほうが安全）
@@ -40,6 +48,3 @@ services:
       TUNNEL_TOKEN: ${CF_TUNNEL_TOKEN:?.env に設定してください}
     depends_on:
       - n8n
-
-volumes:
-  n8n_data:

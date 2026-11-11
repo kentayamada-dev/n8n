@@ -18,16 +18,19 @@ ssh_pwauth: false
 # n8n を動かす Docker Engine と Docker Compose
 # Docker 公式の apt リポジトリから入れる（https://docs.docker.com/engine/install/ubuntu/）
 # Ubuntu の docker.io・docker-compose-v2 は Docker の非公式パッケージで、公式版と競合するので使わない
+#
+# リポジトリの署名鍵（Docker Release (CE deb)、指紋 9DC858229FC7DD38854AE2D88D81803C0EBFCD88）は、
+# 下の write_files で /etc/apt/keyrings/docker.asc に置き、signed-by で指定する
+# cloud-init の keyid（キーサーバーから取得）は gpg が要るが、Ubuntu の Minimal イメージには gpg がない（apt が使う gpgv だけ）
+# apt は拡張子が .asc ならテキスト（ASCII 形式）の鍵をそのまま読めるので、gpg がなくてもよい
+# 鍵の中身は terraform/docker.asc（https://download.docker.com/linux/ubuntu/gpg を保存したもの）
+# 取り直したら、指紋が上と同じか gpg --show-keys terraform/docker.asc で確かめる
 apt:
   sources:
     docker:
-      # $KEY_FILE（鍵の保存先）と $RELEASE（noble など）は cloud-init が埋める
+      # $RELEASE（resolute など）は cloud-init が埋める
       # Terraform の templatefile が置き換えるのは「$ の直後に波かっこ」の形だけなので、この書き方ならそのまま残る
-      source: "deb [signed-by=$KEY_FILE] https://download.docker.com/linux/ubuntu $RELEASE stable"
-      # リポジトリの署名鍵（Docker Release (CE deb)）を指紋で指定する
-      # 起動時に cloud-init が keyserver.ubuntu.com から取得し、この指紋に一致する鍵だけを登録する
-      # （取得に失敗すると Docker が入らず、cloud-init status がエラーになる）
-      keyid: 9DC858229FC7DD38854AE2D88D81803C0EBFCD88
+      source: "deb [signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $RELEASE stable"
 
 # パッケージ一覧を更新してから入れる。docker-ce を入れると docker サービスは自動で起動・有効化される
 # 入れ終わるのは cloud-init の最後の段階（起動から数分）。終わったかは cloud-init status --wait で確かめる
@@ -46,11 +49,18 @@ packages:
 # 値は quic-go の推奨（https://github.com/quic-go/quic-go/wiki/UDP-Buffer-Sizes）
 # この 2 つはネットワーク名前空間ごとではなくホスト全体の値なので、ホストで上げればコンテナにも効く
 # 次の起動からは systemd-sysctl がこのファイルを読む。初回の起動は下の runcmd で反映する
+#
+# Docker の署名鍵（上の apt を参照）もここで置く。write_files は apt の設定より前に実行されるので、
+# apt がリポジトリを読むときには鍵がある
 write_files:
   - path: /etc/sysctl.d/99-cloudflared-quic.conf
     content: |
       net.core.rmem_max=7500000
       net.core.wmem_max=7500000
+  - path: /etc/apt/keyrings/docker.asc
+    permissions: "0644"
+    content: |
+      ${indent(6, docker_apt_key)}
 
 # git 用・sysctl の反映用の項目は cloud-init にないので runcmd を使う。runcmd は packages を入れたあとに実行される
 # runcmd は 1 つのシェルスクリプトとして実行され、そのままだと途中で失敗しても次のコマンドに進み、
