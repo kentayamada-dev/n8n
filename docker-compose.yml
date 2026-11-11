@@ -41,29 +41,5 @@ services:
     depends_on:
       - n8n
 
-  # 支出記録の「質問」が使う LLM を、このサーバーの CPU で動かす（GPU はない）
-  # n8n からは http://ollama:11434 で使う（認証情報 Ollama account の Base URL）。ホストにはポートを開けない
-  # モデルは手で取得する: sudo docker compose exec ollama ollama pull gpt-oss:20b
-  # 取得したモデルは ollama_data ボリュームに残る（サーバーを作り直すと消えるので、取り直す）
-  ollama:
-    # n8n と同じく版を固定する。上げるときは、ここを書き換えた PR で確かめてから、サーバーで git pull と sudo docker compose up -d
-    image: ollama/ollama:0.40.16
-    container_name: ollama
-    restart: unless-stopped
-    environment:
-      # 一度に読み込むモデルは 1 つだけにする（2 つ載るとメモリが足りなくなる）
-      OLLAMA_MAX_LOADED_MODELS: "1"
-      # 同時に処理するリクエストは 1 つにする（並べて処理すると、その分メモリを使う）
-      OLLAMA_NUM_PARALLEL: "1"
-      # 一度に読める長さ（トークン数）。支出記録は長い指示文とスプレッドシート全体を渡すので、既定より長くする
-      # 足りないと入力の先頭が切り捨てられて答えがおかしくなる。長くするほどメモリを使う
-      OLLAMA_CONTEXT_LENGTH: "16384"
-    # メモリを使い切って n8n まで止まらないよう、上限を付ける（超えたときは ollama だけが止まる）
-    # サーバーのメモリは 24 GB。gpt-oss:20b は約 13 GB を使う
-    mem_limit: 18g
-    volumes:
-      - ollama_data:/root/.ollama
-
 volumes:
   n8n_data:
-  ollama_data:
