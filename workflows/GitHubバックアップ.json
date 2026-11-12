@@ -9,7 +9,10 @@
       "parameters": {
         "rule": {
           "interval": [
-            {}
+            {
+              "field": "cronExpression",
+              "expression": "14 23 * * *"
+            }
           ]
         }
       },
@@ -19,8 +22,8 @@
         -160,
         96
       ],
-      "id": "0e4212e6-9685-4466-bdfa-edb892074913",
-      "name": "スケジュール"
+      "id": "f154a4a6-9acc-419c-bec2-6b0a0e43c12a",
+      "name": "毎日23時14分に実行"
     },
     {
       "parameters": {
@@ -50,9 +53,11 @@
         64,
         96
       ],
-      "id": "92871c3a-5c41-4663-8dcb-ea392a3b7e37",
+      "id": "4f799152-7d3b-4ece-ba85-3bdcd2a76b78",
       "name": "全てのレポジトリ取得",
       "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
       "credentials": {
         "githubApi": {
           "id": "Z9dTIH8OijsBIZfO",
@@ -82,10 +87,13 @@
         288,
         96
       ],
-      "id": "e62f28e7-020b-4a24-9065-dda820ac50f0",
+      "id": "f40d82b1-1c28-4fba-82e5-fadd93142776",
       "name": "全てのバックアップファイル取得",
       "executeOnce": true,
       "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
       "credentials": {
         "googleDriveOAuth2Api": {
           "id": "zPDLGiZIzw3NRgu3",
@@ -103,7 +111,7 @@
         512,
         0
       ],
-      "id": "a827c8a7-2793-49ea-9af5-d038c0d71c34",
+      "id": "af4347fe-1366-4dd6-b32d-0f81ad84e6ab",
       "name": "削除するファイル"
     },
     {
@@ -122,8 +130,11 @@
         736,
         0
       ],
-      "id": "f3cbebd7-b44b-4fa0-84b4-3d9ae9cdd767",
+      "id": "1950f313-ede3-462a-8623-4e79879dd58f",
       "name": "ファイル削除",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
       "credentials": {
         "googleDriveOAuth2Api": {
           "id": "zPDLGiZIzw3NRgu3",
@@ -141,7 +152,7 @@
         512,
         192
       ],
-      "id": "4b670b51-4871-4c15-bc34-6b985811a5a7",
+      "id": "783540f9-95dc-421a-80f4-90a304f5bb2f",
       "name": "バックアップ対象リスト"
     },
     {
@@ -157,9 +168,11 @@
         736,
         192
       ],
-      "id": "93394072-6c55-4253-88ec-66cfd31e7d73",
+      "id": "07c1c5f9-8044-4797-b718-5dd184edabfa",
       "name": "レポジトリダウンロード",
       "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
       "credentials": {
         "githubApi": {
           "id": "Z9dTIH8OijsBIZfO",
@@ -200,7 +213,7 @@
         960,
         96
       ],
-      "id": "6166260d-13c6-4599-a6ea-c67d0732a45b",
+      "id": "ce95e50c-61ae-4add-a0ca-2f2ada89177d",
       "name": "レポジトリが存在している"
     },
     {
@@ -220,9 +233,11 @@
         1184,
         0
       ],
-      "id": "b4a68eee-5458-4166-8179-33725ba4b633",
+      "id": "bfc6f833-67df-4d1c-b80a-38c01831851d",
       "name": "レポジトリアップデート",
       "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
       "credentials": {
         "googleDriveOAuth2Api": {
           "id": "zPDLGiZIzw3NRgu3",
@@ -255,9 +270,11 @@
         1184,
         192
       ],
-      "id": "55ef0d3c-03bb-4f07-b029-ffcb39134640",
+      "id": "b46a9dea-f45f-4eef-ae02-81bd1c4704b2",
       "name": "レポジトリアップロード",
       "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
       "credentials": {
         "googleDriveOAuth2Api": {
           "id": "zPDLGiZIzw3NRgu3",
@@ -275,13 +292,12 @@
         960,
         288
       ],
-      "id": "2ddf35fa-bd7b-4771-aa96-e76b64770610",
-      "name": "ダウンロード失敗を通知",
-      "notesInFlow": false
+      "id": "8dee0492-dab2-45c6-a699-0b161d6c029e",
+      "name": "ダウンロード失敗を通知"
     }
   ],
   "connections": {
-    "スケジュール": {
+    "毎日23時14分に実行": {
       "main": [
         [
           {

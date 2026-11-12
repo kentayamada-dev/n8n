@@ -9,7 +9,10 @@
       "parameters": {
         "rule": {
           "interval": [
-            {}
+            {
+              "field": "cronExpression",
+              "expression": "31 1 * * *"
+            }
           ]
         }
       },
@@ -19,8 +22,8 @@
         496,
         656
       ],
-      "id": "282f5bce-a149-4ddc-8b50-697b3161a7f7",
-      "name": "スケジュール"
+      "id": "2d934ea5-d859-43a7-93e2-c164962dbd5e",
+      "name": "毎日1時31分に実行"
     },
     {
       "parameters": {
@@ -48,7 +51,7 @@
         720,
         656
       ],
-      "id": "eb8c8df9-0be0-451e-a20f-8928d0baaca3",
+      "id": "4a607a24-10e8-4c79-a7ef-2f05e2e81494",
       "name": "設定"
     },
     {
@@ -68,15 +71,17 @@
         944,
         656
       ],
-      "id": "f0ceb402-8e25-4256-9d68-68090dce2918",
+      "id": "840506d6-1cf4-4f8f-8d05-6f80802aad94",
       "name": "ブランチの先頭を取得",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
       "credentials": {
         "githubApi": {
           "id": "Z9dTIH8OijsBIZfO",
           "name": "GitHub account"
         }
-      },
-      "notes": "GitHub ノードにはブランチ（ref）を取る操作が無いので、HTTP Request で GraphQL を呼ぶ。\nmain とバックアップ用ブランチの先頭のコミット（oid）と、ブランチを作る・戻すときに使う ID を取る"
+      }
     },
     {
       "parameters": {
@@ -107,17 +112,19 @@
         1168,
         656
       ],
-      "id": "9e57b357-278c-4d8f-8582-27ea8f966f96",
+      "id": "de6b8367-3f12-4cd8-b2e8-04feddb2a5fb",
       "name": "開いているPRを取得",
       "webhookId": "cacf300a-c3ed-445c-8e94-d5a6e927fd0d",
       "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
       "credentials": {
         "githubApi": {
           "id": "Z9dTIH8OijsBIZfO",
           "name": "GitHub account"
         }
-      },
-      "notes": "GitHub ノードの PR 一覧は head / base で絞り込めないので、開いている PR を全部取り、「比べる先を決める」で探す。\n1 件も無いときは Always Output Data で空のアイテムが 1 つ流れる"
+      }
     },
     {
       "parameters": {
@@ -129,7 +136,7 @@
         1392,
         656
       ],
-      "id": "61ce1441-c457-437f-82ab-7b427af05ee9",
+      "id": "8cea77a9-cf9e-4dfb-a389-114a2c34b28f",
       "name": "比べる先を決める"
     },
     {
@@ -162,16 +169,18 @@
         1616,
         656
       ],
-      "id": "be22034f-b7f0-442a-86b8-fb1cc5db7c77",
+      "id": "69c60636-d171-4053-a53f-ca6acd16dd90",
       "name": "GitHubにあるワークフローを取得",
       "webhookId": "8fb2bc61-20e4-4f65-b613-c2fdac591291",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
       "credentials": {
         "githubApi": {
           "id": "Z9dTIH8OijsBIZfO",
           "name": "GitHub account"
         }
-      },
-      "notes": "File > List はブランチやコミットを指定できないので、File > Get にフォルダのパスを渡す。\nフォルダだと中のファイルが 1 件ずつのアイテムで返る（中身は入っていない）"
+      }
     },
     {
       "parameters": {
@@ -203,16 +212,18 @@
         1840,
         656
       ],
-      "id": "dd948c3a-467e-4582-a922-d63e57993643",
+      "id": "f082e596-efff-471f-8bc5-971d1fd8ee87",
       "name": "GitHubのファイルを取得",
       "webhookId": "a7d8cded-d2d4-4af6-a8c4-627d8a97aa45",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
       "credentials": {
         "githubApi": {
           "id": "Z9dTIH8OijsBIZfO",
           "name": "GitHub account"
         }
-      },
-      "notes": "フォルダの一覧には中身が無いので、ファイルを 1 件ずつ取る（中身は content に base64 で入る）"
+      }
     },
     {
       "parameters": {
@@ -225,9 +236,12 @@
         2064,
         656
       ],
-      "id": "d5dd9754-b690-4594-9fa5-ef26d96fb328",
+      "id": "084ed079-9e46-4e42-ab9f-8f979c3b2995",
       "name": "N8Nにあるワークフローを取得",
       "executeOnce": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
       "credentials": {
         "n8nApi": {
           "id": "Sxo1xsqEBOP7vLc4",
@@ -245,7 +259,7 @@
         2288,
         656
       ],
-      "id": "e4adf101-5f4a-4a74-81eb-c37007979662",
+      "id": "e30d662b-cb8d-443a-b725-5ef2989a04a3",
       "name": "変更をまとめる"
     },
     {
@@ -265,15 +279,17 @@
         2512,
         656
       ],
-      "id": "8ea52012-03b0-4d64-a449-0a1ae45861d2",
+      "id": "e4b63b5a-997a-47f9-8d34-2de62c91587a",
       "name": "ブランチにコミット",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
       "credentials": {
         "githubApi": {
           "id": "Z9dTIH8OijsBIZfO",
           "name": "GitHub account"
         }
-      },
-      "notes": "GitHub ノードにはブランチを作る・戻す操作が無く、ファイルの作成・更新・削除も 1 件ずつ別のコミットになるので、HTTP Request で GraphQL を呼び、1 回のコミットにまとめる"
+      }
     },
     {
       "parameters": {
@@ -285,7 +301,7 @@
         2736,
         656
       ],
-      "id": "9f7d107a-9420-4115-ba66-9e697c5566d6",
+      "id": "185370e0-c7f8-40c6-80ab-b9c701041910",
       "name": "コミットできたか確認"
     },
     {
@@ -319,7 +335,7 @@
         2960,
         656
       ],
-      "id": "9ca2011a-bbbd-439b-9f85-2b618a7cfc6c",
+      "id": "c951a69e-d5e4-40ad-a859-e616bf8e8d3d",
       "name": "PRがない"
     },
     {
@@ -350,9 +366,12 @@
         3184,
         656
       ],
-      "id": "f8abc1b5-7e38-482f-9507-a15bbc1569e6",
+      "id": "b2dae4fb-5b8b-4688-9472-e19d27877df8",
       "name": "PRを作成",
       "webhookId": "cec0f883-f207-48cc-8e0b-1305d86a5238",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
       "credentials": {
         "githubApi": {
           "id": "Z9dTIH8OijsBIZfO",
@@ -362,7 +381,7 @@
     }
   ],
   "connections": {
-    "スケジュール": {
+    "毎日1時31分に実行": {
       "main": [
         [
           {
