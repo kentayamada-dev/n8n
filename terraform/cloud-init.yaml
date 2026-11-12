@@ -18,13 +18,11 @@ ssh_pwauth: false
 # パッケージ一覧を更新してから入れる。入れ終わるのは cloud-init の最後の段階（起動から数分）
 # 終わったかは cloud-init status --wait で確かめる。入ったあとの更新は自動では入らない（sudo apt upgrade で更新する）
 # git は下の runcmd でリポジトリを取得するのに使う
-# gpg は下の runcmd で Docker の署名鍵の指紋を確かめるのに使う（Ubuntu の Minimal イメージには gpg がなく、apt が使う gpgv だけ）
 #
 # n8n を動かす Docker Engine と Docker Compose は、ここではなく下の runcmd で入れる（理由は runcmd の説明を参照）
 package_update: true
 packages:
   - git
-  - gpg
 
 # cloudflared（QUIC）が使う UDP の受信・送信バッファの上限を上げる
 # 既定の上限（約 208 KiB）では「failed to sufficiently increase receive buffer size」の警告が出るため
@@ -45,12 +43,13 @@ write_files:
 #
 # Docker は公式の apt リポジトリから入れる（https://docs.docker.com/engine/install/ubuntu/ と同じ手順）
 # Ubuntu の docker.io・docker-compose-v2 は Docker の非公式パッケージで、公式版と競合するので使わない
-#   - 署名鍵（Docker Release (CE deb)）は Docker のサイトから取得し、指紋が 9DC858229FC7DD38854AE2D88D81803C0EBFCD88 の
-#     ときだけ使う（違えばそこで止まり、Docker は入らない）。鍵束には取り込まないので、gpg のホームは使い捨てにする
+#   - 署名鍵（Docker Release (CE deb)）は、公式の手順と同じく Docker のサイトから HTTPS で取得してそのまま使う
+#     （指紋は確かめない。鍵の中身や指紋をリポジトリで管理しなくて済み、Docker が鍵を変えてもそのまま入る）
 #   - apt は拡張子が .asc ならテキスト（ASCII 形式）の鍵をそのまま読めるので、取得したファイルを signed-by に指定する
+#     （ASCII 形式の鍵を変換する gpg は、Ubuntu の Minimal イメージにはない。apt が使う gpgv だけ）
 #   - リポジトリの版（resolute など）は /etc/os-release の VERSION_CODENAME から取る
-#   - cloud-init の apt の設定（keyid でキーサーバーから鍵を取る）を使わないのは、gpg が要るのに Minimal イメージにはなく、
-#     packages で gpg を入れても apt の設定のほうが先に実行されるため
+#   - cloud-init の apt の設定を使わないのは、鍵を URL から取得する設定がなく、
+#     keyid（キーサーバーから取得）は Minimal イメージにない gpg が要るため
 #   - Docker は直接使う 2 つだけ書く。docker-ce-cli・containerd.io は docker-ce の依存関係、
 #     docker-buildx-plugin は推奨パッケージとして一緒に入る（Docker のドキュメントの 5 つと同じものが入る）
 #   - docker-ce を入れると docker サービスは自動で起動・有効化される
@@ -65,9 +64,6 @@ runcmd:
   - set -e
   - install -m 0755 -d /etc/apt/keyrings
   - curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-  - |
-    fpr="$(gpg --homedir "$(mktemp -d)" --show-keys --with-colons /etc/apt/keyrings/docker.asc | awk -F ':' '$1 == "fpr" { print $10; exit }')"
-    test "$fpr" = 9DC858229FC7DD38854AE2D88D81803C0EBFCD88
   - chmod 644 /etc/apt/keyrings/docker.asc
   - echo "deb [signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" > /etc/apt/sources.list.d/docker.list
   - apt-get update
