@@ -54,8 +54,7 @@ resource "oci_core_instance" "n8n" {
     # 初回起動時の設定（シリアル・コンソール用パスワード、Docker のインストール、UDP バッファの上限、リポジトリの取得）。作り直すときにだけ効く
     # metadata は ignore_changes なので、書き換えても今のインスタンスには反映されない（作り直したときに効く）
     user_data = base64encode(templatefile("${path.module}/cloud-init.yaml", {
-      password_hash  = var.console_password_hash
-      docker_apt_key = file("${path.module}/docker.asc")
+      password_hash = var.console_password_hash
     }))
   }
 
