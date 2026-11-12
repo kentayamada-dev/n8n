@@ -15,30 +15,13 @@ chpasswd:
 # SSH のパスワード認証は無効のままにする
 ssh_pwauth: false
 
-# n8n を動かす Docker Engine と Docker Compose
-# Docker 公式の apt リポジトリから入れる（https://docs.docker.com/engine/install/ubuntu/）
-# Ubuntu の docker.io・docker-compose-v2 は Docker の非公式パッケージで、公式版と競合するので使わない
-apt:
-  sources:
-    docker:
-      # $KEY_FILE（鍵の保存先）と $RELEASE（noble など）は cloud-init が埋める
-      # Terraform の templatefile が置き換えるのは「$ の直後に波かっこ」の形だけなので、この書き方ならそのまま残る
-      source: "deb [signed-by=$KEY_FILE] https://download.docker.com/linux/ubuntu $RELEASE stable"
-      # リポジトリの署名鍵（Docker Release (CE deb)）を指紋で指定する
-      # 起動時に cloud-init が keyserver.ubuntu.com から取得し、この指紋に一致する鍵だけを登録する
-      # （取得に失敗すると Docker が入らず、cloud-init status がエラーになる）
-      keyid: 9DC858229FC7DD38854AE2D88D81803C0EBFCD88
-
-# パッケージ一覧を更新してから入れる。docker-ce を入れると docker サービスは自動で起動・有効化される
-# 入れ終わるのは cloud-init の最後の段階（起動から数分）。終わったかは cloud-init status --wait で確かめる
-# 入ったあとの更新は自動では入らない（sudo apt upgrade で更新する）
-# Docker は直接使う 2 つだけ書く。docker-ce-cli・containerd.io は docker-ce の依存関係、
-# docker-buildx-plugin は推奨パッケージとして一緒に入る（Docker のドキュメントの 5 つと同じものが入る）
+# パッケージ一覧を更新してから入れる。入れ終わるのは cloud-init の最後の段階（起動から数分）
+# 終わったかは cloud-init status --wait で確かめる。入ったあとの更新は自動では入らない（sudo apt upgrade で更新する）
 # git は下の runcmd でリポジトリを取得するのに使う
+#
+# n8n を動かす Docker Engine と Docker Compose は、ここではなく下の runcmd で入れる（理由は runcmd の説明を参照）
 package_update: true
 packages:
-  - docker-ce
-  - docker-compose-plugin
   - git
 
 # cloudflared（QUIC）が使う UDP の受信・送信バッファの上限を上げる
@@ -52,10 +35,52 @@ write_files:
       net.core.rmem_max=7500000
       net.core.wmem_max=7500000
 
-# git 用・sysctl の反映用の項目は cloud-init にないので runcmd を使う。runcmd は packages を入れたあとに実行される
-# runcmd は 1 つのシェルスクリプトとして実行され、そのままだと途中で失敗しても次のコマンドに進み、
+  # コンテナから OCI のインスタンス・メタデータ（http://169.254.169.254）を読めないようにする
+  # 読めると、乗っ取られたワークフロー（n8n の HTTP Request ノードなど）から user_data
+  # （シリアル・コンソールのパスワードのハッシュ）などを取られる。n8n にメタデータは要らない
+  #   - Docker の DOCKER-USER チェーンに、コンテナからの 169.254.169.254 の TCP 80 番（メタデータ）を拒否するルールを入れる
+  #     DOCKER-USER はコンテナの通信（ホストを通り抜ける通信）にだけ効くので、ホストの cloud-init や
+  #     Oracle Cloud Agent はこれまでどおりメタデータを読める
+  #   - 止めるのは 80 番だけ。同じ 169.254.169.254 で動いている OCI の DNS（53 番）は、コンテナの名前解決に要るので止めない
+  #   - IPv6 のメタデータ（fd00:c1::a9fe:a9fe）は、VCN も Docker も IPv6 を使っていないので対象外
+  #   - 再起動するとルールは消えるので、systemd のサービスにして起動のたびに入れる
+  #     docker.service より先に動かし、コンテナが動き出す前にルールがある状態にする
+  #     （DOCKER-USER は Docker より先に作っておいてよい。Docker はこのチェーンの中身を変えない）
+  #   - 何度実行しても同じルールが 1 つだけになるよう、入っているか確かめて（-C）から入れる
+  - path: /etc/systemd/system/block-container-imds.service
+    content: |
+      [Unit]
+      Description=Block containers from the instance metadata service
+      Before=docker.service
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      ExecStart=/bin/sh -c 'iptables -N DOCKER-USER 2>/dev/null || true; iptables -C DOCKER-USER -d 169.254.169.254/32 -p tcp --dport 80 -j REJECT --reject-with tcp-reset 2>/dev/null || iptables -I DOCKER-USER -d 169.254.169.254/32 -p tcp --dport 80 -j REJECT --reject-with tcp-reset'
+
+      [Install]
+      WantedBy=docker.service
+
+# Docker のインストール・git・sysctl の反映は runcmd で行う。runcmd は packages を入れたあとに実行される
+# runcmd は 1 つのシェルスクリプト（/bin/sh）として実行され、そのままだと途中で失敗しても次のコマンドに進み、
 # 最後のコマンドの結果だけが成否になる。先頭で set -e にして、どれかが失敗したらそこで止め、
 # cloud-init status がエラーになるようにする
+# Terraform の templatefile が置き換えるのは「$ の直後に波かっこ」の形だけなので、$( ) や $VERSION_CODENAME はそのまま残る
+#
+# Docker は公式の apt リポジトリから入れる（https://docs.docker.com/engine/install/ubuntu/ と同じ手順）
+# Ubuntu の docker.io・docker-compose-v2 は Docker の非公式パッケージで、公式版と競合するので使わない
+#   - 署名鍵（Docker Release (CE deb)）は、公式の手順と同じく Docker のサイトから HTTPS で取得してそのまま使う
+#     （指紋は確かめない。鍵の中身や指紋をリポジトリで管理しなくて済み、Docker が鍵を変えてもそのまま入る）
+#   - apt は拡張子が .asc ならテキスト（ASCII 形式）の鍵をそのまま読めるので、取得したファイルを signed-by に指定する
+#     （ASCII 形式の鍵を変換する gpg は、Ubuntu の Minimal イメージにはない。apt が使う gpgv だけ）
+#   - リポジトリの版（resolute など）は /etc/os-release の VERSION_CODENAME から取る
+#   - cloud-init の apt の設定を使わないのは、鍵を URL から取得する設定がなく、
+#     keyid（キーサーバーから取得）は Minimal イメージにない gpg が要るため
+#   - Docker は直接使う 2 つだけ書く。docker-ce-cli・containerd.io は docker-ce の依存関係、
+#     docker-buildx-plugin は推奨パッケージとして一緒に入る（Docker のドキュメントの 5 つと同じものが入る）
+#   - docker-ce を入れると docker サービスは自動で起動・有効化される
+#   - 入れたら、上の write_files のメタデータを止めるサービスを有効にして動かし、ルールが入ったことを確かめる
+#     （iptables は docker-ce の依存関係で入る。この時点ではまだコンテナは動いていない）
 #
 # n8n のリポジトリ（docker-compose.yml など）は /home/ubuntu/n8n に取得する。公開リポジトリなので認証は要らない
 # 取得するのは作成時点の main だけ。その後の更新は手で git pull する（自動で pull すると確認なしに本番へ出るため）
@@ -65,6 +90,15 @@ write_files:
 # sysctl -p は値を設定できなくても終了コード 0 を返すことがあるので、反映後の値を読み直して確かめる
 runcmd:
   - set -e
+  - install -m 0755 -d /etc/apt/keyrings
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+  - chmod 644 /etc/apt/keyrings/docker.asc
+  - echo "deb [signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" > /etc/apt/sources.list.d/docker.list
+  - apt-get update
+  - DEBIAN_FRONTEND=noninteractive apt-get install -y docker-ce docker-compose-plugin
+  - systemctl daemon-reload
+  - systemctl enable --now block-container-imds.service
+  - iptables -C DOCKER-USER -d 169.254.169.254/32 -p tcp --dport 80 -j REJECT --reject-with tcp-reset
   - git clone https://github.com/kentayamada-dev/n8n.git /home/ubuntu/n8n
   - chown -R ubuntu:ubuntu /home/ubuntu/n8n
   - sysctl -p /etc/sysctl.d/99-cloudflared-quic.conf
