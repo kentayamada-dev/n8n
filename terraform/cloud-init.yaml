@@ -35,6 +35,32 @@ write_files:
       net.core.rmem_max=7500000
       net.core.wmem_max=7500000
 
+  # コンテナから OCI のインスタンス・メタデータ（http://169.254.169.254）を読めないようにする
+  # 読めると、乗っ取られたワークフロー（n8n の HTTP Request ノードなど）から user_data
+  # （シリアル・コンソールのパスワードのハッシュ）などを取られる。n8n にメタデータは要らない
+  #   - Docker の DOCKER-USER チェーンに、コンテナからの 169.254.169.254 の TCP 80 番（メタデータ）を拒否するルールを入れる
+  #     DOCKER-USER はコンテナの通信（ホストを通り抜ける通信）にだけ効くので、ホストの cloud-init や
+  #     Oracle Cloud Agent はこれまでどおりメタデータを読める
+  #   - 止めるのは 80 番だけ。同じ 169.254.169.254 で動いている OCI の DNS（53 番）は、コンテナの名前解決に要るので止めない
+  #   - IPv6 のメタデータ（fd00:c1::a9fe:a9fe）は、VCN も Docker も IPv6 を使っていないので対象外
+  #   - 再起動するとルールは消えるので、systemd のサービスにして起動のたびに入れる
+  #     docker.service より先に動かし、コンテナが動き出す前にルールがある状態にする
+  #     （DOCKER-USER は Docker より先に作っておいてよい。Docker はこのチェーンの中身を変えない）
+  #   - 何度実行しても同じルールが 1 つだけになるよう、入っているか確かめて（-C）から入れる
+  - path: /etc/systemd/system/block-container-imds.service
+    content: |
+      [Unit]
+      Description=Block containers from the instance metadata service
+      Before=docker.service
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      ExecStart=/bin/sh -c 'iptables -N DOCKER-USER 2>/dev/null || true; iptables -C DOCKER-USER -d 169.254.169.254/32 -p tcp --dport 80 -j REJECT --reject-with tcp-reset 2>/dev/null || iptables -I DOCKER-USER -d 169.254.169.254/32 -p tcp --dport 80 -j REJECT --reject-with tcp-reset'
+
+      [Install]
+      WantedBy=docker.service
+
 # Docker のインストール・git・sysctl の反映は runcmd で行う。runcmd は packages を入れたあとに実行される
 # runcmd は 1 つのシェルスクリプト（/bin/sh）として実行され、そのままだと途中で失敗しても次のコマンドに進み、
 # 最後のコマンドの結果だけが成否になる。先頭で set -e にして、どれかが失敗したらそこで止め、
@@ -53,6 +79,8 @@ write_files:
 #   - Docker は直接使う 2 つだけ書く。docker-ce-cli・containerd.io は docker-ce の依存関係、
 #     docker-buildx-plugin は推奨パッケージとして一緒に入る（Docker のドキュメントの 5 つと同じものが入る）
 #   - docker-ce を入れると docker サービスは自動で起動・有効化される
+#   - 入れたら、上の write_files のメタデータを止めるサービスを有効にして動かし、ルールが入ったことを確かめる
+#     （iptables は docker-ce の依存関係で入る。この時点ではまだコンテナは動いていない）
 #
 # n8n のリポジトリ（docker-compose.yml など）は /home/ubuntu/n8n に取得する。公開リポジトリなので認証は要らない
 # 取得するのは作成時点の main だけ。その後の更新は手で git pull する（自動で pull すると確認なしに本番へ出るため）
@@ -68,6 +96,9 @@ runcmd:
   - echo "deb [signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" > /etc/apt/sources.list.d/docker.list
   - apt-get update
   - DEBIAN_FRONTEND=noninteractive apt-get install -y docker-ce docker-compose-plugin
+  - systemctl daemon-reload
+  - systemctl enable --now block-container-imds.service
+  - iptables -C DOCKER-USER -d 169.254.169.254/32 -p tcp --dport 80 -j REJECT --reject-with tcp-reset
   - git clone https://github.com/kentayamada-dev/n8n.git /home/ubuntu/n8n
   - chown -R ubuntu:ubuntu /home/ubuntu/n8n
   - sysctl -p /etc/sysctl.d/99-cloudflared-quic.conf
