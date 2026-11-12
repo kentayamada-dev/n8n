@@ -18,10 +18,10 @@
           "includeLinkToWorkflow": false
         }
       },
-      "id": "934041eb-9f1c-4aa9-b77a-adfe337d827b",
+      "id": "656abb1d-98f5-4d65-8001-3978191bb785",
       "name": "Slackに通知",
       "type": "n8n-nodes-base.slack",
-      "typeVersion": 2.2,
+      "typeVersion": 2.3,
       "position": [
         656,
         864
@@ -41,7 +41,7 @@
       "parameters": {
         "jsCode": "// エラー実行とトリガー起動失敗の両方に対応してSlack向けメッセージを作る\nconst d = $input.first().json;\nconst wf = d.workflow ?? {};\nconst exec = d.execution ?? {};\nconst trg = d.trigger ?? {};\n\nconst isTriggerError = !exec.id && trg.error != null;\nconst err = (isTriggerError ? trg.error : exec.error) ?? {};\n\nconst now = new Intl.DateTimeFormat('ja-JP', {\n  timeZone: 'Asia/Tokyo',\n  year: 'numeric', month: '2-digit', day: '2-digit',\n  hour: '2-digit', minute: '2-digit', second: '2-digit',\n}).format(new Date());\n\nconst lines = [\n  '\\u{1F6A8} ワークフローがエラーで停止しました',\n  '',\n  `ワークフロー: ${wf.name ?? '(不明)'}`,\n  `発生時刻: ${now}`,\n];\n\nconst failedNode = exec.lastNodeExecuted ?? err.node?.name;\nif (failedNode) lines.push(`失敗ノード: ${failedNode}`);\n\nlines.push('', 'エラー内容:');\nlines.push(String(err.message ?? '(詳細不明)').slice(0, 500));\n\nif (exec.url) lines.push('', `実行ログ: ${exec.url}`);\nif (isTriggerError) {\n  lines.push('', '\\u26A0\\uFE0F トリガーの起動に失敗しています。ワークフローが動いていない可能性があります。');\n}\n\nreturn [{ json: { text: lines.join('\\n') } }];\n"
       },
-      "id": "3c9aa3d1-c1c9-4be5-81e5-8c733ec14fde",
+      "id": "7f26d50f-d38b-4074-9161-a6f8a73a9503",
       "name": "通知メッセージを整形",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -52,7 +52,7 @@
     },
     {
       "parameters": {},
-      "id": "ebcadb46-6914-42b4-bebe-e8062bb56e96",
+      "id": "c1bf960f-2e66-4e7e-ba10-42b2e47d5f70",
       "name": "エラー発生時",
       "type": "n8n-nodes-base.errorTrigger",
       "typeVersion": 1,
