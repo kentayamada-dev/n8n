@@ -16,10 +16,10 @@
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.3,
       "position": [
-        592,
+        496,
         656
       ],
-      "id": "a3032f5b-4a87-47ff-abf5-1cf1bb800c18",
+      "id": "282f5bce-a149-4ddc-8b50-697b3161a7f7",
       "name": "スケジュール"
     },
     {
@@ -45,10 +45,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        816,
+        720,
         656
       ],
-      "id": "6c1b3ea3-1f67-4d1d-8c16-64fc6f416ace",
+      "id": "eb8c8df9-0be0-451e-a20f-8928d0baaca3",
       "name": "設定"
     },
     {
@@ -59,23 +59,160 @@
         "nodeCredentialType": "githubApi",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({\n  query: `query ($base: String!, $baseRef: String!, $branchRef: String!) {\n    repository(owner: \"kentayamada-dev\", name: \"n8n\") {\n      id\n      nameWithOwner\n      base: ref(qualifiedName: $baseRef) {\n        target { ...workflows }\n      }\n      branch: ref(qualifiedName: $branchRef) {\n        id\n        associatedPullRequests(states: OPEN, baseRefName: $base, first: 1) { totalCount }\n        target { ...workflows }\n      }\n    }\n  }\n  fragment workflows on Commit {\n    oid\n    file(path: \"workflows\") {\n      object {\n        ... on Tree {\n          entries { name object { ... on Blob { text isTruncated } } }\n        }\n      }\n    }\n  }`,\n  variables: {\n    base: $('設定').first().json.base,\n    baseRef: 'refs/heads/' + $('設定').first().json.base,\n    branchRef: 'refs/heads/' + $('設定').first().json.branch,\n  },\n}) }}",
+        "jsonBody": "={{ JSON.stringify({\n  query: `query ($baseRef: String!, $branchRef: String!) {\n    repository(owner: \"kentayamada-dev\", name: \"n8n\") {\n      id\n      nameWithOwner\n      base: ref(qualifiedName: $baseRef) { target { oid } }\n      branch: ref(qualifiedName: $branchRef) { id target { oid } }\n    }\n  }`,\n  variables: {\n    baseRef: 'refs/heads/' + $('設定').first().json.base,\n    branchRef: 'refs/heads/' + $('設定').first().json.branch,\n  },\n}) }}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        1040,
+        944,
         656
       ],
-      "id": "49e44218-78b6-4a6b-bcbb-ae2ac1111af0",
-      "name": "GitHubの状態を取得",
+      "id": "f0ceb402-8e25-4256-9d68-68090dce2918",
+      "name": "ブランチの先頭を取得",
       "credentials": {
         "githubApi": {
           "id": "Z9dTIH8OijsBIZfO",
           "name": "GitHub account"
         }
-      }
+      },
+      "notes": "GitHub ノードにはブランチ（ref）を取る操作が無いので、HTTP Request で GraphQL を呼ぶ。\nmain とバックアップ用ブランチの先頭のコミット（oid）と、ブランチを作る・戻すときに使う ID を取る"
+    },
+    {
+      "parameters": {
+        "resource": "repository",
+        "operation": "getPullRequests",
+        "owner": {
+          "__rl": true,
+          "value": "kentayamada-dev",
+          "mode": "list",
+          "cachedResultName": "kentayamada-dev",
+          "cachedResultUrl": "https://github.com/kentayamada-dev"
+        },
+        "repository": {
+          "__rl": true,
+          "value": "n8n",
+          "mode": "list",
+          "cachedResultName": "n8n",
+          "cachedResultUrl": "https://github.com/kentayamada-dev/n8n"
+        },
+        "returnAll": true,
+        "getRepositoryPullRequestsFilters": {
+          "state": "open"
+        }
+      },
+      "type": "n8n-nodes-base.github",
+      "typeVersion": 1.1,
+      "position": [
+        1168,
+        656
+      ],
+      "id": "9e57b357-278c-4d8f-8582-27ea8f966f96",
+      "name": "開いているPRを取得",
+      "webhookId": "cacf300a-c3ed-445c-8e94-d5a6e927fd0d",
+      "alwaysOutputData": true,
+      "credentials": {
+        "githubApi": {
+          "id": "Z9dTIH8OijsBIZfO",
+          "name": "GitHub account"
+        }
+      },
+      "notes": "GitHub ノードの PR 一覧は head / base で絞り込めないので、開いている PR を全部取り、「比べる先を決める」で探す。\n1 件も無いときは Always Output Data で空のアイテムが 1 つ流れる"
+    },
+    {
+      "parameters": {
+        "jsCode": "// GitHub のどのコミットと比べ、どこにコミットするかを決める\nconst { branch: branchName, base: baseName } = $('設定').first().json;\n\n// GraphQL は失敗しても HTTP 200 で errors を返すので、ここで確かめる\nconst res = $('ブランチの先頭を取得').first().json;\nconst repository = res.data?.repository;\nif (res.errors?.length || !repository?.base) {\n  const reason = (res.errors ?? []).map((e) => e.message).join(' / ') || JSON.stringify(res).slice(0, 300);\n  throw new Error(`GitHub のブランチを取得できませんでした: ${reason}`);\n}\n\n// 「開いているPRを取得」の中から、バックアップ用ブランチ → main の PR を探す\n// 開いている PR が 1 件も無いときは空のアイテムが 1 つ来る（head が無いので当たらない）\nconst hasPR = Boolean(repository.branch) && $input.all().some(({ json: pr }) =>\n  pr.head?.ref === branchName\n  && pr.head?.repo?.full_name === repository.nameWithOwner\n  && pr.base?.ref === baseName);\n\n// PR が開いていれば、そのブランチと比べて続きにコミットする\n// 開いていなければ（マージした・閉じた・まだ無い）main と比べ、ブランチを main に戻して（無ければ作って）からコミットし、PR を作る\n// GitHub のファイルは、ここで決めたコミット（oid）のものを読む。コミットするときも同じ oid を expectedHeadOid に渡すので、\n// 読んでからコミットするまでにブランチが進んでいたら、GitHub がコミットを拒否する\nreturn [{\n  json: {\n    hasPR,\n    oid: hasPR ? repository.branch.target.oid : repository.base.target.oid,\n    repositoryId: repository.id,\n    repositoryNameWithOwner: repository.nameWithOwner,\n    branchRefId: repository.branch?.id ?? null,\n    branchOid: repository.branch?.target.oid ?? null,\n  },\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1392,
+        656
+      ],
+      "id": "61ce1441-c457-437f-82ab-7b427af05ee9",
+      "name": "比べる先を決める"
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "operation": "get",
+        "owner": {
+          "__rl": true,
+          "value": "kentayamada-dev",
+          "mode": "list",
+          "cachedResultName": "kentayamada-dev",
+          "cachedResultUrl": "https://github.com/kentayamada-dev"
+        },
+        "repository": {
+          "__rl": true,
+          "value": "n8n",
+          "mode": "list",
+          "cachedResultName": "n8n",
+          "cachedResultUrl": "https://github.com/kentayamada-dev/n8n"
+        },
+        "filePath": "workflows",
+        "asBinaryProperty": false,
+        "additionalParameters": {
+          "reference": "={{ $('比べる先を決める').first().json.oid }}"
+        }
+      },
+      "type": "n8n-nodes-base.github",
+      "typeVersion": 1.1,
+      "position": [
+        1616,
+        656
+      ],
+      "id": "be22034f-b7f0-442a-86b8-fb1cc5db7c77",
+      "name": "GitHubにあるワークフローを取得",
+      "webhookId": "8fb2bc61-20e4-4f65-b613-c2fdac591291",
+      "credentials": {
+        "githubApi": {
+          "id": "Z9dTIH8OijsBIZfO",
+          "name": "GitHub account"
+        }
+      },
+      "notes": "File > List はブランチやコミットを指定できないので、File > Get にフォルダのパスを渡す。\nフォルダだと中のファイルが 1 件ずつのアイテムで返る（中身は入っていない）"
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "operation": "get",
+        "owner": {
+          "__rl": true,
+          "value": "kentayamada-dev",
+          "mode": "list",
+          "cachedResultName": "kentayamada-dev",
+          "cachedResultUrl": "https://github.com/kentayamada-dev"
+        },
+        "repository": {
+          "__rl": true,
+          "value": "n8n",
+          "mode": "list",
+          "cachedResultName": "n8n",
+          "cachedResultUrl": "https://github.com/kentayamada-dev/n8n"
+        },
+        "filePath": "={{ $json.path }}",
+        "asBinaryProperty": false,
+        "additionalParameters": {
+          "reference": "={{ $('比べる先を決める').first().json.oid }}"
+        }
+      },
+      "type": "n8n-nodes-base.github",
+      "typeVersion": 1.1,
+      "position": [
+        1840,
+        656
+      ],
+      "id": "dd948c3a-467e-4582-a922-d63e57993643",
+      "name": "GitHubのファイルを取得",
+      "webhookId": "a7d8cded-d2d4-4af6-a8c4-627d8a97aa45",
+      "credentials": {
+        "githubApi": {
+          "id": "Z9dTIH8OijsBIZfO",
+          "name": "GitHub account"
+        }
+      },
+      "notes": "フォルダの一覧には中身が無いので、ファイルを 1 件ずつ取る（中身は content に base64 で入る）"
     },
     {
       "parameters": {
@@ -85,10 +222,10 @@
       "type": "n8n-nodes-base.n8n",
       "typeVersion": 1,
       "position": [
-        1264,
+        2064,
         656
       ],
-      "id": "7851e41a-0027-4838-a3ba-ee57921c29ae",
+      "id": "d5dd9754-b690-4594-9fa5-ef26d96fb328",
       "name": "N8Nにあるワークフローを取得",
       "executeOnce": true,
       "credentials": {
@@ -100,15 +237,15 @@
     },
     {
       "parameters": {
-        "jsCode": "// n8n のワークフローを GitHub のファイルと比べて、GitHub に反映する操作を 1 回の GraphQL の mutation にまとめる\n// 変更が無ければ何も返さずに止める（ブランチも PR も触らない）\nconst { branch: branchName, base: baseName } = $('設定').first().json;\n\n// GitHub の状態（「GitHubの状態を取得」の結果）\n// GraphQL は失敗しても HTTP 200 で errors を返すので、ここで確かめる\nconst res = $('GitHubの状態を取得').first().json;\nconst repository = res.data?.repository;\nif (res.errors?.length || !repository?.base) {\n  const reason = (res.errors ?? []).map((e) => e.message).join(' / ') || JSON.stringify(res).slice(0, 300);\n  throw new Error(`GitHub の状態を取得できませんでした: ${reason}`);\n}\n\n// PR が開いていれば、そのブランチと比べて続きにコミットする\n// 開いていなければ（マージした・閉じた・まだ無い）main と比べ、ブランチを main に戻して（無ければ作って）からコミットし、PR を作る\nconst hasPR = repository.branch?.associatedPullRequests.totalCount > 0;\nconst head = hasPR ? repository.branch.target : repository.base.target;\n\n// 比べる相手のファイル（ファイル名 → 中身）\nconst githubFiles = new Map();\n// workflows/ がまだ無いときは file が null になる\nfor (const { name, object } of head.file?.object?.entries ?? []) {\n  if (!name.endsWith('.json')) continue;\n  // 大きすぎるファイルは中身が途中で切られる。そのまま比べると毎回「変更あり」になるので、エラーにして知らせる\n  if (object?.isTruncated) {\n    throw new Error(`workflows/${name} が大きく、GitHub から中身を全部は取得できませんでした`);\n  }\n  githubFiles.set(name, object?.text);\n}\n\nconst n8nWorkflows = $input.all().map((i) => i.json);\n\n// 安全装置: n8nから取れた一覧に、このワークフロー自身が入っていなければ何も削除せずに止める。\n// 一覧が空、またはAPIキーの持ち主・プロジェクトが違って一部しか見えていないと、GitHubのファイルを全部消してしまうため。\n// 正しく動いていればこの状態にはならないので、黙って飛ばさずにエラーにして「エラー通知」でSlackに知らせる\n// （ここで止まるので、その日のバックアップも行われない）\nif (!n8nWorkflows.some((w) => w.id === $workflow.id)) {\n  throw new Error(\n    `n8nから取得したワークフロー一覧（${n8nWorkflows.length}件）に、このワークフロー自身が含まれていません。`\n    + \"認証情報「n8n account」のAPIキーの持ち主とプロジェクトを確認してください。GitHubのファイルは削除していません。\",\n  );\n}\n\nconst changes = []; // コミットメッセージに並べる「add / update / delete: 名前」\nconst additions = [];\nconst deletions = [];\nconst n8nFiles = new Set();\n\nfor (const wf of n8nWorkflows) {\n  // 公開リポジトリにコミットするので、ワークフローの中身ではない項目を外してから比べる\n  // - staticData: 実行のたびに変わる状態（前回の実行日・取得したレートなど）。入れたままだと毎日「変更あり」になる\n  // - pinData: 画面でテスト用に固定した実行データ。Binance の残高や支出などの実データがそのまま入る\n  // - activeVersion / shared: 公開中の版の写しと、前の n8n のプロジェクト情報。取り込むときにも消している（import-workflows.sh）\n  // - versionId / activeVersionId / updatedAt / triggerCount: 保存・公開・有効化のたびに n8n が書き換える管理用の値。\n  //   入れたままだと、中身が同じでも「公開しただけ」「変えずに保存しただけ」でコミットされる。\n  //   取り込むとき n8n は versionId を作り直し activeVersionId を空にするので、無くても復元に困らない\n  // active（有効/無効）は残す。切り替えは意味のある変化で、取り込み時に --activeState=fromJson で使える\n  const { staticData, pinData, activeVersion, shared, versionId, activeVersionId, updatedAt, triggerCount, ...workflow } = wf;\n  const file = `${workflow.name}.json`;\n  n8nFiles.add(file);\n\n  // ファイルの形（2 文字下げ・最後に改行なし）は変えない。変えると全部のファイルが「変更あり」になる\n  const text = JSON.stringify(workflow, null, 2);\n  if (githubFiles.get(file) === text) continue;\n\n  changes.push({ action: githubFiles.has(file) ? 'update' : 'add', name: workflow.name });\n  // createCommitOnBranch は中身を base64 で受け取る\n  additions.push({ path: `workflows/${file}`, contents: Buffer.from(text).toString('base64') });\n}\n\n// GitHub にあって、n8n に無くなったワークフローのファイルを消す\nfor (const file of githubFiles.keys()) {\n  if (n8nFiles.has(file)) continue;\n  changes.push({ action: 'delete', name: file.replace(/\\.json$/, '') });\n  deletions.push({ path: `workflows/${file}` });\n}\n\nif (changes.length === 0) {\n  return [];\n}\n\n// 1 件なら「update: 支出記録」。複数なら見出しは「update: 支出記録 ほか 2 件」にして、本文に 1 件ずつ並べる\nconst lines = changes.map((c) => `${c.action}: ${c.name}`);\nconst prefix = new Set(changes.map((c) => c.action)).size === 1 ? changes[0].action : 'update';\nconst message = changes.length === 1\n  ? { headline: lines[0] }\n  : { headline: `${prefix}: ${changes[0].name} ほか ${changes.length - 1} 件`, body: lines.join('\\n') };\n\n// GitHub に反映する操作。1 回の mutation の中で上から順に動き、前の操作の結果は次の操作に反映される\n// 途中が失敗しても後ろは動く（例: コミットが失敗すると PR 作成も「No commits between」で失敗する）ので、「反映できたか確認」で errors を見て止める\n// ブランチを戻すのは PR が無いときだけなので、どこで失敗しても、次の実行で戻すところからやり直せる\nconst steps = [];\nif (!hasPR && !repository.branch) {\n  steps.push({\n    op: 'createRef',\n    input: { repositoryId: repository.id, name: `refs/heads/${branchName}`, oid: head.oid },\n    returns: 'ref { name }',\n  });\n} else if (!hasPR && repository.branch.target.oid !== head.oid) {\n  // PR を閉じたときなどに残っているコミットは捨てる\n  steps.push({\n    op: 'updateRef',\n    input: { refId: repository.branch.id, oid: head.oid, force: true },\n    returns: 'ref { name }',\n  });\n}\nsteps.push({\n  op: 'createCommitOnBranch',\n  input: {\n    branch: { repositoryNameWithOwner: repository.nameWithOwner, branchName },\n    // 比べたときの先頭。それまでにブランチが進んでいたら、GitHub がコミットを拒否する\n    expectedHeadOid: head.oid,\n    message,\n    fileChanges: { additions, deletions },\n  },\n  returns: 'commit { url }',\n});\nif (!hasPR) {\n  steps.push({\n    op: 'createPullRequest',\n    input: {\n      repositoryId: repository.id,\n      baseRefName: baseName,\n      headRefName: branchName,\n      title: `update: n8n のワークフロー（${$now.toFormat('yyyy-MM-dd')}〜）`,\n      body: [\n        '「ワークフローバックアップ」が、n8n のワークフローの変更をまとめた PR です。',\n        '',\n        '- マージするまでは、変更があるたびにこのブランチへコミットを足していきます',\n        '- マージすると main に入ります。次に変更があったとき、新しい PR を作ります',\n        '- マージせずに閉じても、n8n の中身が main と違うままなら、次の実行でブランチを main に戻して PR を作り直します',\n      ].join('\\n'),\n    },\n    returns: 'pullRequest { url }',\n  });\n}\n\n// 例: mutation ($createCommitOnBranch: CreateCommitOnBranchInput!) {\n//       createCommitOnBranch(input: $createCommitOnBranch) { commit { url } }\n//     }\nconst query = [\n  `mutation (${steps.map(({ op }) => `$${op}: ${op[0].toUpperCase()}${op.slice(1)}Input!`).join(', ')}) {`,\n  ...steps.map(({ op, returns }) => `  ${op}(input: $${op}) { ${returns} }`),\n  '}',\n].join('\\n');\nconst variables = Object.fromEntries(steps.map(({ op, input }) => [op, input]));\n\nreturn [{ json: { query, variables } }];\n"
+        "jsCode": "// n8n のワークフローを GitHub のファイルと比べて、GitHub に反映する操作（ブランチの用意とコミット）を 1 回の GraphQL の mutation にまとめる\n// 変更が無ければ何も返さずに止める（ブランチも PR も触らない）\nconst { branch: branchName } = $('設定').first().json;\nconst target = $('比べる先を決める').first().json;\n\n// 比べる相手のファイル（ファイル名 → 中身）\n// 「GitHubのファイルを取得」が、比べる先のコミットにある workflows/ のファイルを 1 件ずつ返す\nconst githubFiles = new Map();\nfor (const { json: file } of $('GitHubのファイルを取得').all()) {\n  // workflows/ の直下にある .json だけを比べる\n  if (file.type !== 'file' || !/^workflows\\/[^/]+\\.json$/.test(file.path ?? '')) continue;\n  // 1 MB を超えるファイルは中身が返ってこない（encoding が none になる）。そのまま比べると毎回「変更あり」になるので、エラーにして知らせる\n  if (file.encoding !== 'base64') {\n    throw new Error(`${file.path} が大きく、GitHub から中身を取得できませんでした`);\n  }\n  // content は base64（途中に改行が入っているが、Buffer は読み飛ばす）\n  githubFiles.set(file.name, Buffer.from(file.content, 'base64').toString('utf8'));\n}\n\nconst n8nWorkflows = $input.all().map((i) => i.json);\n\n// 安全装置: n8nから取れた一覧に、このワークフロー自身が入っていなければ何も削除せずに止める。\n// 一覧が空、またはAPIキーの持ち主・プロジェクトが違って一部しか見えていないと、GitHubのファイルを全部消してしまうため。\n// 正しく動いていればこの状態にはならないので、黙って飛ばさずにエラーにして「エラー通知」でSlackに知らせる\n// （ここで止まるので、その日のバックアップも行われない）\nif (!n8nWorkflows.some((w) => w.id === $workflow.id)) {\n  throw new Error(\n    `n8nから取得したワークフロー一覧（${n8nWorkflows.length}件）に、このワークフロー自身が含まれていません。`\n    + \"認証情報「n8n account」のAPIキーの持ち主とプロジェクトを確認してください。GitHubのファイルは削除していません。\",\n  );\n}\n\nconst changes = []; // コミットメッセージに並べる「add / update / delete: 名前」\nconst additions = [];\nconst deletions = [];\nconst n8nFiles = new Set();\n\nfor (const wf of n8nWorkflows) {\n  // 公開リポジトリにコミットするので、ワークフローの中身ではない項目を外してから比べる\n  // - staticData: 実行のたびに変わる状態（前回の実行日・取得したレートなど）。入れたままだと毎日「変更あり」になる\n  // - pinData: 画面でテスト用に固定した実行データ。Binance の残高や支出などの実データがそのまま入る\n  // - activeVersion / shared: 公開中の版の写しと、前の n8n のプロジェクト情報。取り込むときにも消している（import-workflows.sh）\n  // - versionId / activeVersionId / updatedAt / triggerCount: 保存・公開・有効化のたびに n8n が書き換える管理用の値。\n  //   入れたままだと、中身が同じでも「公開しただけ」「変えずに保存しただけ」でコミットされる。\n  //   取り込むとき n8n は versionId を作り直し activeVersionId を空にするので、無くても復元に困らない\n  // active（有効/無効）は残す。切り替えは意味のある変化で、取り込み時に --activeState=fromJson で使える\n  const { staticData, pinData, activeVersion, shared, versionId, activeVersionId, updatedAt, triggerCount, ...workflow } = wf;\n  const file = `${workflow.name}.json`;\n  n8nFiles.add(file);\n\n  // ファイルの形（2 文字下げ・最後に改行なし）は変えない。変えると全部のファイルが「変更あり」になる\n  const text = JSON.stringify(workflow, null, 2);\n  if (githubFiles.get(file) === text) continue;\n\n  changes.push({ action: githubFiles.has(file) ? 'update' : 'add', name: workflow.name });\n  // createCommitOnBranch は中身を base64 で受け取る\n  additions.push({ path: `workflows/${file}`, contents: Buffer.from(text).toString('base64') });\n}\n\n// GitHub にあって、n8n に無くなったワークフローのファイルを消す\nfor (const file of githubFiles.keys()) {\n  if (n8nFiles.has(file)) continue;\n  changes.push({ action: 'delete', name: file.replace(/\\.json$/, '') });\n  deletions.push({ path: `workflows/${file}` });\n}\n\nif (changes.length === 0) {\n  return [];\n}\n\n// 1 件なら「update: 支出記録」。複数なら見出しは「update: 支出記録 ほか 2 件」にして、本文に 1 件ずつ並べる\nconst lines = changes.map((c) => `${c.action}: ${c.name}`);\nconst prefix = new Set(changes.map((c) => c.action)).size === 1 ? changes[0].action : 'update';\nconst message = changes.length === 1\n  ? { headline: lines[0] }\n  : { headline: `${prefix}: ${changes[0].name} ほか ${changes.length - 1} 件`, body: lines.join('\\n') };\n\n// GitHub に反映する操作。1 回の mutation の中で上から順に動き、前の操作の結果は次の操作に反映される\n// 途中が失敗しても後ろは動くので、「コミットできたか確認」で errors を見て止める\n// ブランチを戻すのは PR が無いときだけなので、どこで失敗しても、次の実行で戻すところからやり直せる\n// PR は、コミットできてから「PRを作成」（GitHub ノード）で作る\nconst steps = [];\nif (!target.hasPR && !target.branchRefId) {\n  steps.push({\n    op: 'createRef',\n    input: { repositoryId: target.repositoryId, name: `refs/heads/${branchName}`, oid: target.oid },\n    returns: 'ref { name }',\n  });\n} else if (!target.hasPR && target.branchOid !== target.oid) {\n  // PR を閉じたときなどに残っているコミットは捨てる\n  steps.push({\n    op: 'updateRef',\n    input: { refId: target.branchRefId, oid: target.oid, force: true },\n    returns: 'ref { name }',\n  });\n}\nsteps.push({\n  op: 'createCommitOnBranch',\n  input: {\n    branch: { repositoryNameWithOwner: target.repositoryNameWithOwner, branchName },\n    // 比べたときの先頭。それまでにブランチが進んでいたら、GitHub がコミットを拒否する\n    expectedHeadOid: target.oid,\n    message,\n    fileChanges: { additions, deletions },\n  },\n  returns: 'commit { url }',\n});\n\n// 例: mutation ($createCommitOnBranch: CreateCommitOnBranchInput!) {\n//       createCommitOnBranch(input: $createCommitOnBranch) { commit { url } }\n//     }\nconst query = [\n  `mutation (${steps.map(({ op }) => `$${op}: ${op[0].toUpperCase()}${op.slice(1)}Input!`).join(', ')}) {`,\n  ...steps.map(({ op, returns }) => `  ${op}(input: $${op}) { ${returns} }`),\n  '}',\n].join('\\n');\nconst variables = Object.fromEntries(steps.map(({ op, input }) => [op, input]));\n\nreturn [{ json: { query, variables } }];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1488,
+        2288,
         656
       ],
-      "id": "665a64f2-2fed-4512-b203-619dcaa51869",
+      "id": "e4adf101-5f4a-4a74-81eb-c37007979662",
       "name": "変更をまとめる"
     },
     {
@@ -125,30 +262,103 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        1712,
+        2512,
         656
       ],
-      "id": "2043cfb2-fa7d-4b00-a383-d1b5cc2b2f66",
-      "name": "GitHubに反映",
+      "id": "8ea52012-03b0-4d64-a449-0a1ae45861d2",
+      "name": "ブランチにコミット",
+      "credentials": {
+        "githubApi": {
+          "id": "Z9dTIH8OijsBIZfO",
+          "name": "GitHub account"
+        }
+      },
+      "notes": "GitHub ノードにはブランチを作る・戻す操作が無く、ファイルの作成・更新・削除も 1 件ずつ別のコミットになるので、HTTP Request で GraphQL を呼び、1 回のコミットにまとめる"
+    },
+    {
+      "parameters": {
+        "jsCode": "// GraphQL は失敗しても HTTP 200 で errors を返すので、HTTP Request ノードはエラーにならない\n// mutation の中の操作は途中が失敗しても後ろが動くので、1 つでも失敗していたらエラーにして「エラー通知」で Slack に知らせる\n// expectedHeadOid が合わない（比べてからコミットするまでにブランチが進んだ）ときもここで止まる。次の実行でやり直す\nconst res = $input.first().json;\nconst commit = res.data?.createCommitOnBranch?.commit;\n\nif (res.errors?.length || !commit) {\n  const reason = (res.errors ?? []).map((e) => `${e.path?.join('.') ?? '-'}: ${e.message}`).join(' / ') || JSON.stringify(res).slice(0, 300);\n  throw new Error(`ブランチにコミットできませんでした: ${reason}`);\n}\n\nreturn [{ json: commit }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2736,
+        656
+      ],
+      "id": "9f7d107a-9420-4115-ba66-9e697c5566d6",
+      "name": "コミットできたか確認"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "4c5c05fe-ac2c-4b5e-8e63-afa1cdc2f048",
+              "leftValue": "={{ !$('比べる先を決める').first().json.hasPR }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2960,
+        656
+      ],
+      "id": "9ca2011a-bbbd-439b-9f85-2b618a7cfc6c",
+      "name": "PRがない"
+    },
+    {
+      "parameters": {
+        "resource": "pullRequest",
+        "base": "={{ $('設定').first().json.base }}",
+        "head": "={{ $('設定').first().json.branch }}",
+        "title": "=update: n8n のワークフロー（{{ $now.toFormat('yyyy-MM-dd') }}〜）",
+        "body": "「ワークフローバックアップ」が、n8n のワークフローの変更をまとめた PR です。\n\n- マージするまでは、変更があるたびにこのブランチへコミットを足していきます\n- マージすると main に入ります。次に変更があったとき、新しい PR を作ります\n- マージせずに閉じても、n8n の中身が main と違うままなら、次の実行でブランチを main に戻して PR を作り直します",
+        "owner": {
+          "__rl": true,
+          "value": "kentayamada-dev",
+          "mode": "list",
+          "cachedResultName": "kentayamada-dev",
+          "cachedResultUrl": "https://github.com/kentayamada-dev"
+        },
+        "repository": {
+          "__rl": true,
+          "value": "n8n",
+          "mode": "list",
+          "cachedResultName": "n8n",
+          "cachedResultUrl": "https://github.com/kentayamada-dev/n8n"
+        }
+      },
+      "type": "n8n-nodes-base.github",
+      "typeVersion": 1.1,
+      "position": [
+        3184,
+        656
+      ],
+      "id": "f8abc1b5-7e38-482f-9507-a15bbc1569e6",
+      "name": "PRを作成",
+      "webhookId": "cec0f883-f207-48cc-8e0b-1305d86a5238",
       "credentials": {
         "githubApi": {
           "id": "Z9dTIH8OijsBIZfO",
           "name": "GitHub account"
         }
       }
-    },
-    {
-      "parameters": {
-        "jsCode": "// GraphQL は失敗しても HTTP 200 で errors を返すので、HTTP Request ノードはエラーにならない\n// mutation の中の操作は途中が失敗しても後ろが動くので、1 つでも失敗していたらエラーにして「エラー通知」で Slack に知らせる\n// expectedHeadOid が合わない（比べてからコミットするまでにブランチが進んだ）ときもここで止まる。次の実行でやり直す\nconst res = $input.first().json;\n\nif (res.errors?.length || !res.data) {\n  const reason = (res.errors ?? []).map((e) => `${e.path?.join('.') ?? '-'}: ${e.message}`).join(' / ') || JSON.stringify(res).slice(0, 300);\n  throw new Error(`GitHub に反映できませんでした: ${reason}`);\n}\n\nreturn [{ json: res.data }];\n"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1936,
-        656
-      ],
-      "id": "71bd10df-f307-4ff9-ac33-02d2c441d3b8",
-      "name": "反映できたか確認"
     }
   ],
   "connections": {
@@ -167,14 +377,58 @@
       "main": [
         [
           {
-            "node": "GitHubの状態を取得",
+            "node": "ブランチの先頭を取得",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "GitHubの状態を取得": {
+    "ブランチの先頭を取得": {
+      "main": [
+        [
+          {
+            "node": "開いているPRを取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "開いているPRを取得": {
+      "main": [
+        [
+          {
+            "node": "比べる先を決める",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "比べる先を決める": {
+      "main": [
+        [
+          {
+            "node": "GitHubにあるワークフローを取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GitHubにあるワークフローを取得": {
+      "main": [
+        [
+          {
+            "node": "GitHubのファイルを取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GitHubのファイルを取得": {
       "main": [
         [
           {
@@ -200,18 +454,40 @@
       "main": [
         [
           {
-            "node": "GitHubに反映",
+            "node": "ブランチにコミット",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "GitHubに反映": {
+    "ブランチにコミット": {
       "main": [
         [
           {
-            "node": "反映できたか確認",
+            "node": "コミットできたか確認",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "コミットできたか確認": {
+      "main": [
+        [
+          {
+            "node": "PRがない",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PRがない": {
+      "main": [
+        [
+          {
+            "node": "PRを作成",
             "type": "main",
             "index": 0
           }
